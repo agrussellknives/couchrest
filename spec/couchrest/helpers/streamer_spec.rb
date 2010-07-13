@@ -13,11 +13,38 @@ describe CouchRest::Streamer do
       "_id" => "_design/first",
       :views => {
         :test => {
-	  :map => "function(doc){for(var w in doc){ if(!w.match(/^_/))emit(w,doc[w])}}"
+	        :map => "function(doc){for(var w in doc){ if(!w.match(/^_/))emit(w,doc[w])}}"
+        },
+        :by_integer => {
+          :map => "function(doc){ emit(doc.integer); }"
         }
+      },
+      :lists => {
+        :keystring => <<-JAVASCRIPT
+function(head,req) {
+   var row; 
+   var inc = 1;
+   while(row = getRow()) { 
+     if (inc % 10 == 0) {
+       send(row.key + ' ' + inc)
+       send('\\n')
+     }
+    inc++;
+   }
+};
+JAVASCRIPT
+      },
+      :shows => {
+        :valuestring => <<-JAVASCRIPT
+function (doc,req) {
+  send("The value is:\\n");
+  send(doc.integer);
+}
+JAVASCRIPT
       }
     })
   end
+  
   
   it "should yield each row in a view" do
     count = 0
@@ -49,4 +76,28 @@ describe CouchRest::Streamer do
     count.should == 2000
   end
 
+
+  it "should yield each line in a list" do
+    count = 0
+    @streamer.list("first/keystring/test") do |row|
+      count += 1
+    end
+    count.should == 200
+  end
+  
+  it "should yield each line in a show" do
+    count = 0
+    
+    @res = @db.view 'first/by_integer', {:startkey => 1, :endkey => 1}
+    id = @res['rows'].first['id']
+    
+    rows = []
+    @streamer.show("first/valuestring/#{id}") do |row|
+      rows << row
+    end
+    
+    rows[0].should == "The value is:\n"
+    rows[1].should == "1"
+  end
+  
 end
