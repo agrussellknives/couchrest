@@ -118,6 +118,11 @@ module CouchRest
       doc
     end
     
+    # GET a document using square bracket notation, parameters are not supported
+    def [](id)
+      get(id,nil)
+    end
+    
     # GET an attachment directly from CouchDB
     def fetch_attachment(doc, name)
       uri = url_for_attachment(doc, name)

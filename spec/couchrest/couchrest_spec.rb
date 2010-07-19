@@ -141,6 +141,11 @@ describe CouchRest do
       db.name.should == 'couchrest-test-2'
       db.info["db_name"].should == 'couchrest-test-2'
     end
+    it "can also use [] notation" do
+      @cr.create_db(TEST_DB)
+      db = @cr[TEST_DB]
+      db.should be_an_instance_of(CouchRest::Database)
+    end
   end
 
   describe "successfully creating a database" do

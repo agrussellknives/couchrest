@@ -52,6 +52,7 @@ module CouchRest
     def database(name)
       CouchRest::Database.new(self, name)
     end
+    alias :[] :database
   
     # Creates the database if it doesn't exist
     def database!(name)
