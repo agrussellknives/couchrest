@@ -161,6 +161,10 @@ describe CouchRest::Database do
     it "should work with a funky id" do
       @db.get(@docid)['will-exist'].should == 'here'
     end
+    it "should be able to use [] notation" do
+      doc = @db[@docid]
+      doc['lemons'].should == 'from texas'
+    end
   end
   
   describe "POST (adding bulk documents)" do

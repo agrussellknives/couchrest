@@ -70,6 +70,27 @@ module CouchRest
     
     # backwards compatibility is a plus
     alias :temp_view :slow_view
+    
+    # Query a CouchDB show function as defined by a <tt>_design</tt> document. Accepts
+    # parameters as describe in http://wiki.apache.org/couchdb/Formatting_with_Show_and_List
+    # The format for specifiying the show is <design_doc>/<show_name>/<doc_id>
+    def show(name, params= {}, &block)
+      dname,sname,*doc_id = name.split('/')
+      doc_id = doc_id.join('/') # can you have slashes in doc ids?
+      url = CouchRest.paramify_url "#{@root}/_design/#{dname}/_show/#{sname}/#{doc_id}", params
+      design_query(url,params,nil,&block)
+    end
+      
+    # Query a CouchDB list function as defined by a <tt>_design</tt> document.  Accepts
+    # parameters as described in http://wiki.apache.org/couchdb/Formatting_with_Show_and_List
+    # The format for specifiying the show is <design_doc>/<list_name>/<doc_id>
+    def list(name, params = {}, &block)
+      keys = params.delete(:keys)
+      dname,lname,*vname = name.split('/')
+      vname = vname.join('/')
+      url = CouchRest.paramify_url "#{@root}/_design/#{dname}/_list/#{lname}/#{vname}", params
+      design_query(url,params,keys,&block)
+    end
   
     # Query a CouchDB view as defined by a <tt>_design</tt> document. Accepts
     # paramaters as described in http://wiki.apache.org/couchdb/HttpViewApi
@@ -79,15 +100,7 @@ module CouchRest
       dname = name.shift
       vname = name.join('/')
       url = CouchRest.paramify_url "#{@root}/_design/#{dname}/_view/#{vname}", params
-      if keys
-        CouchRest.post(url, {:keys => keys})
-      else
-        if block_given?
-          @streamer.view("_design/#{dname}/_view/#{vname}", params, &block)
-        else
-          CouchRest.get url
-        end
-      end
+      design_query(url,params,keys,&block)
     end
     
     # GET a document from CouchDB, by id. Returns a Ruby Hash.
@@ -103,6 +116,11 @@ module CouchRest
       end
       doc.database = self
       doc
+    end
+    
+    # GET a document using square bracket notation, parameters are not supported
+    def [](id)
+      get(id,nil)
     end
     
     # GET an attachment directly from CouchDB
@@ -320,6 +338,18 @@ module CouchRest
     end
 
     private
+    
+    def design_query(url, params = {}, keys = nil, &block)
+      if keys
+        CouchRest.post(url, {:keys => keys})
+      else
+        if block_given?
+          @streamer.view(url,params,&block)
+        else
+          CouchRest.get_raw url
+        end
+      end
+    end
     
     def replicate(other_db, continuous, options)
       raise ArgumentError, "must provide a CouchReset::Database" unless other_db.kind_of?(CouchRest::Database)

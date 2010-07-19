@@ -116,6 +116,12 @@ describe CouchRest::Design do
       res = @des.view :by_name, :descending => false
       res["rows"].first["key"].should == "a"
     end
+    it "should be able to get the original request" do
+      res = @des.view :by_name
+      res.raw_response.code.should == 200
+      res.raw_response.headers[:content_type].should == 'text/plain;charset=utf-8'
+      JSON.parse(res.raw_response).should == res
+    end
   end
   
   describe "a view with multiple keys" do
@@ -133,6 +139,77 @@ describe CouchRest::Design do
       res = @des.view :by_name_and_age
       res["rows"].first["key"].should == ["a",2]
     end
+  end
+  
+  describe "a show function" do
+    before(:all) do
+      @db = reset_test_db!
+      @des = CouchRest::Design.new
+      @des.name = "test"
+      @des.view_by :name
+      @des.database = @db
+      @des.show_using :echo
+      @des.show_using :the_word_hi, "function(doc,req) { return { 'body' : 'hi' }; }"
+      @des.show_using :transformed_document, "function(doc,req) { return {'body': doc['name'] + ' is ' + doc['age']}}"
+      @des.save
+      @thing1 = {"_id"=>"thing1", "name" => "a", "age" => 4}  
+      @db.bulk_save([{"name" => "a", "age" => 2}, @thing1 ,{"name" => "z", "age" => 9}])
+    end
+    it "should return the document specified" do
+      res = @des.show 'echo/thing1'
+      @thing1.each_key do |k|
+        res[k].should == @thing1[k]
+      end
+    end
+    it "should return the document transformed" do
+      res = @des.show 'transformed_document/thing1'
+      res.should == 'a is 4'
+    end
+    it "should return something arbitirary" do
+      res = @des.show 'the_word_hi/thing1'
+      res.should == 'hi'
+    end
+  end
+    
+  describe "a list function" do
+    before(:all) do
+      @db = reset_test_db!
+      @des = CouchRest::Design.new
+      @des.name = "test"
+      @des.view_by :name
+      @des.database = @db
+      @des.list_using :echo
+      
+      @des.list_using :the_word_hi, "function(head,req) { send('hi'); }"
+      
+      @des.save
+      @db.bulk_save([{"name" => "a", "age" => 2},
+        {"name" => "a", "age" => 4},{"name" => "z", "age" => 9}])
+        
+    end
+    it "should return the same rows as the view, with a header" do   
+      res = @des.list 'echo/by_name'
+      res.raw_response.headers[:content_type] == "application/json"
+      res2 = @des.view :by_name
+      res.should == res2['rows']
+    end
+    
+    it "should return anything you want" do
+      res = @des.list 'the_word_hi/by_name'
+      res.should == 'hi'
+    end
+    
+    it "should support listing a view in a different design doc" do
+      @des2 = CouchRest::Design.new
+      @des2.name = "other"
+      @des2.view_by :age
+      @des2.database = @db
+      @des2.save
+      
+      res = @des.list 'echo/other/by_age'
+      res.should == @des2.view(:by_age)['rows']
+    end
+    
   end
 
   describe "a view with nil and 0 values" do

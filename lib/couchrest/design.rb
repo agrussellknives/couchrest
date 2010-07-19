@@ -34,20 +34,103 @@ JAVASCRIPT
       method_name
     end
     
+    # Create a list function on a design document by specifiying a string with
+    # a compilable function in it.  If no list function is supplied, then
+    # a simple echo function is used. Returns the name of the function - which
+    # will always be "echo" if the default function is used
+    def list_using name, func = nil
+      raise ArgumentError, "_list functions must supply a name" unless name && name.length > 0
+      self['lists'] ||= {}
+      if func
+        self['lists'][name] = func
+        name
+      else
+        self['lists'][name] = <<-JAVASCRIPT
+function(head,req) {
+  var row;
+  start({"headers":{"Content-Type":"application/json"}});
+  send('[');
+  row = getRow()
+  while(true) {
+    if(row) {
+      send(JSON.stringify(row));
+    }
+    row = getRow();
+    if(row) {
+      send(',');
+    } else {
+      break;
+    }
+  }
+  send(']');
+}
+JAVASCRIPT
+        :echo
+      end
+    end
+    
+    # Create a show function on a design document by specifiying a string with
+    # a compilable function in it.  If no show function is supplied, then
+    # a simple echo function is used. Returns the name of the function - which
+    # will always be "echo" if the default function is used
+    def show_using name, func = nil
+      raise ArgumentError, "_show functions must supply a name" unless name && name.length > 0
+      self['shows'] ||= {}
+      if func
+        self['shows'][name] = func
+        name
+      else
+        self['shows'][name] = <<-JAVASCRIPT
+function(doc,req) {
+  return { 'json' : doc };  
+}
+JAVASCRIPT
+        :echo
+      end
+    end
+      
+    
     # Dispatches to any named view.
     # (using the database where this design doc was saved)
     def view view_name, query={}, &block
-      view_on database, view_name, query, &block
+      query_on database, view_name, :view, query, &block
+    end
+     
+    # Dispatches to named show
+    # (using the database where this design doc was saved)
+    def show show_name, query={}, &block
+      query_on database, show_name, :show, query, &block
+    end
+    
+    # Dispatches to named list
+    # (using the database where this design doc was saved)
+    # to use a list function from a different design doc, specify it before the list function
+    # <list_name>/<design_doc>/<view>
+    def list list_name, query={}, &block
+      if (list_name.include? name) and (list_name.split('/').size == 3) then
+        raise ArgumentError, "external _design doc specified is same as primary _design doc"
+      end 
+      query_on database, list_name, :list, query, &block
     end
 
-    # Dispatches to any named view in a specific database
-    def view_on db, view_name, query={}, &block
+    # Dispatches to any named design doc function in a specific database
+    def query_on db, view_name, method = :view, query={}, &block
       view_name = view_name.to_s
       view_slug = "#{name}/#{view_name}"
-      defaults = (self['views'][view_name] && self['views'][view_name]["couchrest-defaults"]) || {}
-      db.view(view_slug, defaults.merge(query), &block)
+      key = method.to_s + "s"
+      defaults = (self[key][view_name] && self[key][view_name]["couchrest-defaults"]) || {}
+      db.send(method, view_slug, defaults.merge(query), &block)
     end
-
+    
+    # Calls to query_on with a preset method.  Show is not supported.
+    def list_on db, view_name, query={}, &block
+      query_on db, view_name, :list, query, &block
+    end
+    
+    def view_on db, view_name, query={}, &block
+      query_on db, view_name, :view, query, &block
+    end
+    
     def name
       id.sub('_design/','') if id
     end
