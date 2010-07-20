@@ -27,7 +27,12 @@ describe CouchRest do
   end
   
   it "should restart" do
-    @cr.restart!
+    begin
+      @cr.restart!
+    rescue RestClient::ServerBrokeConnection
+      # this is expected, I suppose
+    end
+    
     begin
       @cr.info
     rescue
@@ -149,8 +154,8 @@ describe CouchRest do
       db.info["db_name"].should == 'couchrest-test-2'
     end
     it "can also use [] notation" do
-      @cr.create_db(TEST_DB)
-      db = @cr[TEST_DB]
+      @cr.create_db(TESTDB)
+      db = @cr[TESTDB]
       db.should be_an_instance_of(CouchRest::Database)
     end
   end

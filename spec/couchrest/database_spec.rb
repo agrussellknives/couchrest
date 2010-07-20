@@ -163,7 +163,7 @@ describe CouchRest::Database do
     end
     it "should be able to use [] notation" do
       doc = @db[@docid]
-      doc['lemons'].should == 'from texas'
+      doc['will-exist'].should == 'here'
     end
   end
   
