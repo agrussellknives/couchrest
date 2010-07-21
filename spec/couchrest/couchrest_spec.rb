@@ -27,12 +27,7 @@ describe CouchRest do
   end
   
   it "should restart" do
-    begin
-      @cr.restart!
-    rescue RestClient::ServerBrokeConnection
-      # this is expected, I suppose
-    end
-    
+    @cr.restart!    
     begin
       @cr.info
     rescue
